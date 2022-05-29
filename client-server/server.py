@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import numbers
 import sys
 import socket
 import select
@@ -7,6 +8,7 @@ import json
 import base64
 import csv
 import random
+from urllib import response
 from common_comm import send_dict, recv_dict, sendrecv_dict
 
 from Crypto.Cipher import AES
@@ -79,29 +81,36 @@ def new_client (client_sock, request):
 			print("Cliente existente...")
 			return {"op": "START", "status": False, "error": "Client existente!"}
 	print("[SUCCESS] The client " + request["client_id"] + " joined the server.")
-	users.update({request["client_id"]: {"socket"} })
-	return None
+	users.update({request["client_id"]: {"socket": client_sock, "cipher": None, "numbers" : []}})		# process the client in the dictionary
+	return {"op": "START", "status": True}		# return response message with or without error message
 
 
-# process the client in the dictionary
-# return response message with or without error message
 
 
 #
 # Suporte da eliminação de um cliente
 #
 def clean_client (client_sock):
-	return None
-# obtain the client_id from his socket and delete from the dictionary
+	client_id = find_client_id(client_sock)
+	if client_id:
+		del users[client_id]		# obtain the client_id from his socket and delete from the dictionary
+		return True
+	return False
 
 
 #
 # Suporte do pedido de desistência de um cliente - operação QUIT
 #
-def quit_client (client_sock, request):
-	return None
-# obtain the client_id from his socket
-# verify the appropriate conditions for executing this operation
+def quit_client (client_sock):
+	id = find_client_id(client_sock)		# obtain the client_id from his socket
+	if id not in users:
+		return {"op": "QUIT", "status": False, "error": "Cliente inexistente!"}		# verify the appropriate conditions for executing this operation
+	print(f"[QUITTING...] {id} quit.")
+	update_file(id, "QUIT")
+	clean_client(client_sock)
+	return {"op": "QUIT", "status": True}
+
+
 # process the report file with the QUIT result
 # eliminate client from dictionary
 # return response message with or without error message
@@ -112,7 +121,7 @@ def quit_client (client_sock, request):
 #
 def create_file ():
 	fout = open("report.csv", 'w')
-	writer = csv.DictWriter(fout, delimiter=",", fieldbnames=["client_id", "numbers", "max", "min"] )
+	writer = csv.DictWriter(fout, delimiter=",", fieldbnames=["client_id", "numbers", "min", "max", "result"])
 	writer.writeheader()
 	return None
 # create report csv file with header
@@ -122,9 +131,10 @@ def create_file ():
 # Suporte da actualização de um ficheiro csv com a informação do cliente e resultado
 #
 def update_file (client_id, result):
+	op = users[client_id]
 	with open("report.csv", 'a') as f:
 		writer = csv.writer(f)
-		writer.writerow([client_id, result["numbers"], result["max"], result["min"]])
+		writer.writerow([client_id, op["numbers"], max(op["numbers"]), min(op["numbers"]), result])
 	return None
 # update report csv file with the result from the client
 
@@ -133,7 +143,11 @@ def update_file (client_id, result):
 # Suporte do processamento do número de um cliente - operação NUMBER
 #
 def number_client (client_sock, request):
-	return None
+	id = find_client_id(client_sock)
+	if id not in users:
+		return {"op": "NUMBER", "status": False, "error": "Cliente inexistente!"}
+	else:
+		return {"op": "NUMBER", "number": users[id][""]}
 # obtain the client_id from his socket
 # verify the appropriate conditions for executing this operation
 # return response message with or without error message
@@ -143,7 +157,17 @@ def number_client (client_sock, request):
 # Suporte do pedido de terminação de um cliente - operação STOP
 #
 def stop_client (client_sock, request):
-	return None
+	id = find_client_id(client_sock)
+	if id not in users:
+		return {"op": "QUIT", "status": False, "error": "Cliente inexistente! "}
+	
+	if len(request["number"]) < 2:
+		clean_client(client_sock)
+		return {"op": "QUIT", "status": False, "error": "Dados insuficientes!"}
+	else:
+		print("Guess you don't like number :/")
+		return {"op": "QUIT", "status": True, "min": users[id]["min"], "max": users[id]["max"]}
+	
 # obtain the client_id from his socket
 # verify the appropriate conditions for executing this operation
 # process the report file with the result
@@ -155,8 +179,20 @@ def main():
 	# validate the number of arguments and eventually print error message and exit with error
 	# verify type of of arguments and eventually print error message and exit with error
 	
-	port = ?
+	if len(sys.agrv) != 2:
+		print("[ERROR] Invalid number of arguments!")
+		sys.exit(1)
+	elif not sys.argv[1].isnumeric():
+		print("[ERROR] Invalid port!")
+		sys.exit(2)
+	elif int(sys.agrv[1]) < 0 or int(sys.argv[1]) > 65535:
+		print("[ERROR] Invalid port!")
+		sys.exit(2)
+	
+	port = int(sys.argv[1])
 
+	print("[ONLINE] Servidor ligado!")
+	
 	server_socket = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.bind (("127.0.0.1", port))
 	server_socket.listen (10)

@@ -210,16 +210,12 @@ def main():
 	# validate the number of arguments and eventually print error message and exit with error
 	# verify type of of arguments and eventually print error message and exit with error
 	
-	if len(sys.agrv) != 2:
+	if len(sys.argv) != 2:
 		print("[ERROR] Invalid number of arguments!")
 		sys.exit(1)
 	elif not sys.argv[1].isnumeric():
 		print("[ERROR] Invalid port!")
 		sys.exit(2)
-	elif int(sys.agrv[1]) < 0 or int(sys.argv[1]) > 65535:
-		print("[ERROR] Invalid port!")
-		sys.exit(2)
-	
 	port = int(sys.argv[1])
 
 	print("[ONLINE] Servidor ligado!")

@@ -27,13 +27,23 @@ def find_client_id (client_sock):
 # Função para encriptar valores a enviar em formato json com codificação base64
 # return int data encrypted in a 16 bytes binary string and coded base64
 def encrypt_intvalue (client_id, data):
-	return None
+	if client_id == None:
+		return data
+	cipher = AES.new(client_id, AES.MODE_ECB)
+	data = str(data).encode("utf-8")
+	data = cipher.encrypt(data)
+	return base64.b64encode(data)
 
 
 # Função para desencriptar valores recebidos em formato json com codificação base64
 # return int data decrypted from a 16 bytes binary string and coded base64
 def decrypt_intvalue (client_id, data):
-	return None
+	if client_id == None:
+		return data
+	cipher = AES.new(client_id, AES.MODE_ECB)
+	data = base64.b64decode(data)
+	data = cipher.decrypt(data)
+	return int(data.decode("utf-8"))
 
 
 # Incomming message structure:
@@ -65,6 +75,7 @@ def new_msg (client_sock):
 	elif request["op"] == "QUIT":
 		execute = quit_client(client_sock, request)
 	else:
+		print(f"[ERROR] Operation not available! ")
 		execute = {"op": request["op"], "status": False, "error": "Operation not available!"}
 	send_dict(client_sock, execute)			# send the response to the client
 	return None
@@ -74,14 +85,21 @@ def new_msg (client_sock):
 # Suporte da criação de um novo jogador - operação START
 #
 def new_client (client_sock, request):
-	print("[REQUEST...] detected" + request["client_id"] + " request.")		# detect the client in the request
+	client = request["client_id"]		# detect the client in the request
+	print("[REQUEST...] detected" + request["client_id"] + " request.")		
 	# verify the appropriate conditions for executing this operation
-	for i in range(0, len(users.keys())):
-		if request["client_id"] == list(users.keys())[i]:
-			print("Cliente existente...")
-			return {"op": "START", "status": False, "error": "Client existente!"}
+	if request["client_id"] in users:
+		print("Client already exists")
+		return {"op": "START", "status": False, "error": "Client existente!"}
+	
 	print("[SUCCESS] The client " + request["client_id"] + " joined the server.")
-	users.update({request["client_id"]: {"socket": client_sock, "cipher": None, "numbers" : []}})		# process the client in the dictionary
+	
+	users.update({
+		request["client_id"]: {
+			"socket": client_sock,
+			"cipher": base64.b64decode(request["cipher"]) if request["cipher"] != None else None, 
+			"numbers" : []}
+	})		# process the client in the dictionary
 	return {"op": "START", "status": True}		# return response message with or without error message
 
 
@@ -104,6 +122,7 @@ def clean_client (client_sock):
 def quit_client (client_sock):
 	id = find_client_id(client_sock)		# obtain the client_id from his socket
 	if id not in users:
+		print(f"[ERROR] Client {id} does not exists!")
 		return {"op": "QUIT", "status": False, "error": "Cliente inexistente!"}		# verify the appropriate conditions for executing this operation
 	print(f"[QUITTING...] {id} quit.")
 	update_file(id, "QUIT")
@@ -143,33 +162,45 @@ def update_file (client_id, result):
 # Suporte do processamento do número de um cliente - operação NUMBER
 #
 def number_client (client_sock, request):
-	id = find_client_id(client_sock)
+	id = find_client_id(client_sock)		# obtain the client_id from his socket
+	# verify the appropriate conditions for executing this operation
 	if id not in users:
+		print(f"[ERROR] Client {id} does not exists!")
 		return {"op": "NUMBER", "status": False, "error": "Cliente inexistente!"}
-	else:
-		return {"op": "NUMBER", "number": users[id][""]}
-# obtain the client_id from his socket
-# verify the appropriate conditions for executing this operation
-# return response message with or without error message
+	try:
+		recv_num = int(decrypt_intvalue(users[id]["cipher"], request["number"]))
+		users[id]["numbers"].append(recv_num)
+	
+	# return response message with or without error message	
+		print(f"[NUMBER] Client {id} sent: {request['number']}")
+		return {"op": "NUMBER", "status": True}
+	except Exception as e:
+		print("[ERROR] ", e)
+		return {"op": "NUMBER", "status": False, "error": "Erro ao decodificar!"}
+	
 
 
 #
 # Suporte do pedido de terminação de um cliente - operação STOP
 #
 def stop_client (client_sock, request):
-	id = find_client_id(client_sock)
+	id = find_client_id(client_sock)	# obtain the client_id from his socket
+	# verify the appropriate conditions for executing this operation
 	if id not in users:
+		print(f"[ERROR] Client {id} does not exists!")
 		return {"op": "QUIT", "status": False, "error": "Cliente inexistente! "}
 	
-	if len(request["number"]) < 2:
-		clean_client(client_sock)
+	if len(users[id]["numbers"]) == 0:
+		print(f"[ERROR] Not enough data!")
 		return {"op": "QUIT", "status": False, "error": "Dados insuficientes!"}
 	else:
-		print("Guess you don't like number :/")
+		print(f"[STOP] Client {id} stopped... ")
+		update_file(id, request)
+		clean_client(client_sock)
 		return {"op": "QUIT", "status": True, "min": users[id]["min"], "max": users[id]["max"]}
 	
-# obtain the client_id from his socket
-# verify the appropriate conditions for executing this operation
+
+
 # process the report file with the result
 # eliminate client from dictionary
 # return response message with result or error message
@@ -206,7 +237,7 @@ def main():
 		except ValueError:
 			# Sockets may have been closed, check for that
 			for client_sock in clients:
-				if client_sock.fileno () == -1: client_sock.remove (client) # closed
+				if client_sock.fileno () == -1: users.remove (client_sock) # closed
 			continue # Reiterate select
 
 		for client_sock in available:

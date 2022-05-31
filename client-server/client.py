@@ -5,9 +5,6 @@ import sys
 import socket
 import json
 import base64
-from xmlrpc import client
-from requests import request
-from platform import machine
 from common_comm import send_dict, recv_dict, sendrecv_dict
 from Crypto.Cipher import AES
 
@@ -23,7 +20,7 @@ def encrypt_intvalue (cipherkey, data):
 	cipher = AES.new(cipherkey, AES.MODE_ECB)
 	data = str(data).encode("utf-8")
 	data = cipher.encrypt(data)
-	return base64.b64encode(data)#feito
+	return base64.b64encode(data)
 
 
 # Função para desencriptar valores recebidos em formato json com codificação base64
@@ -34,7 +31,7 @@ def decrypt_intvalue (cipherkey, data):
 	cipher = AES.new(cipherkey, AES.MODE_ECB)
 	data = base64.b64decode(data)
 	data = cipher.decrypt(data)
-	return int(data.decode("utf-8"))#feito
+	return int(data.decode("utf-8"))
 
 
 # verify if response from server is valid or is an error message and act accordingly
@@ -44,7 +41,7 @@ def validate_response (client_sock, response):
 		client_sock.close()
 		sys.exit(3)
 	else:
-		return None#feito
+		return None  
 
 
 # process QUIT operation
@@ -54,7 +51,7 @@ def quit_action (client_sock):
 	print(f"Closing...")
 	client_sock.close()
 	print(f"Closed.")
-	sys.exit(4)#feito
+	sys.exit(4)
 
 # Outcomming message structure:
 # { op = "START", client_id, [cipher] }
@@ -124,7 +121,7 @@ def run_client(c, client_id, server_address, server_port):
                 # Convert input to int
                 int_value = int(input_value)
                 operation_number = sendrecv_dict(
-                    c, {"op": "NUMBER", "number": encrypt_intvalue(cipherkey, int_value)})
+                    c, {"op": "NUMBER", "number": encrypt_intvalue(cipherkey, int_value)})                
                 # Validate response from server
                 validate_response(c, operation_number)
                 # Add number to list
@@ -138,25 +135,25 @@ def main():
 	# validate the number of arguments and eventually print error message and exit with error
 	# verify type of of arguments and eventually print error message and exit with error
 
-	if len(sys.argv) != 3 or len(sys.argv) != 4:
+	if len(sys.argv) < 3 or len(sys.argv) > 4:
 		print(f"Usage: python3 client.py <id> <port> [machine]")
 		sys.exit(1)
         # verify type of of arguments and eventually print error message and exit with error
-	if not (sys.argv[2].isdigit() and int(sys.argv[2]) <= 0):
+	if not (sys.argv[2].isdigit() and int(sys.argv[2]) >= 0):
 		print("Usage: port must be a number greater than zero")
 		sys.exit(2)
 
 
-	port = int(sys.argv[1])
-	hostname = "127.0.0.1"
+	port = int(sys.argv[2])
+	hostname = "localhost" if len(sys.argv) == 3 else sys.argv[3]
 
 	client_sock = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
 	client_sock.connect ((hostname, port))
 
-	run_client (client_sock, sys.argv[1])
+	run_client (client_sock, sys.argv[1], hostname, port)
 
 	client_sock.close ()
-	sys.exit (0)#feito
+	sys.exit (0)
 
 if __name__ == "__main__":
     main()

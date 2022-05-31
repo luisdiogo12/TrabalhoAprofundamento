@@ -1,0 +1,5 @@
+client_id,numbers,min,max
+Afonso,[],0,0
+Afonso,"[1, 3, 7, 99]",99,1
+Luis,"[2, 6, 10, 0]",10,0
+Adrego,"[3, 2, 1]",3,1

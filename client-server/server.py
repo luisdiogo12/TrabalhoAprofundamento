@@ -71,9 +71,9 @@ def new_msg (client_sock):
 	elif request["op"] == "NUMBER":
 		execute = number_client(client_sock, request)
 	elif request["op"] == "STOP":
-		execute = stop_client(client_sock, request)
+		execute = stop_client(client_sock)
 	elif request["op"] == "QUIT":
-		execute = quit_client(client_sock, request)
+		execute = quit_client(client_sock)
 	else:
 		print(f"[ERROR] Operation not available! ")
 		execute = {"op": request["op"], "status": False, "error": "Operation not available!"}
@@ -86,7 +86,7 @@ def new_msg (client_sock):
 #
 def new_client (client_sock, request):
 	client = request["client_id"]		# detect the client in the request
-	print("[REQUEST...] detected" + request["client_id"] + " request.")		
+	print("[REQUEST...] detected " + request["client_id"] + " request.")		
 	# verify the appropriate conditions for executing this operation
 	if request["client_id"] in users:
 		print("Client already exists")
@@ -125,7 +125,7 @@ def quit_client (client_sock):
 		print(f"[ERROR] Client {id} does not exists!")
 		return {"op": "QUIT", "status": False, "error": "Cliente inexistente!"}		# verify the appropriate conditions for executing this operation
 	print(f"[QUITTING...] {id} quit.")
-	update_file(id, "QUIT")
+	update_file(id)
 	clean_client(client_sock)
 	return {"op": "QUIT", "status": True}
 
@@ -140,7 +140,7 @@ def quit_client (client_sock):
 #
 def create_file ():
 	fout = open("report.csv", 'w')
-	writer = csv.DictWriter(fout, delimiter=",", fieldbnames=["client_id", "numbers", "min", "max", "result"])
+	writer = csv.DictWriter(fout, delimiter=",", fieldnames=["client_id", "numbers", "min", "max"])
 	writer.writeheader()
 	return None
 # create report csv file with header
@@ -149,11 +149,14 @@ def create_file ():
 #
 # Suporte da actualização de um ficheiro csv com a informação do cliente e resultado
 #
-def update_file (client_id, result):
+def update_file (client_id):
 	op = users[client_id]
 	with open("report.csv", 'a') as f:
 		writer = csv.writer(f)
-		writer.writerow([client_id, op["numbers"], max(op["numbers"]), min(op["numbers"]), result])
+		if len(op["numbers"]) == 0:
+			writer.writerow([client_id, [], 0, 0])
+		else:
+			writer.writerow([client_id, op["numbers"], max(op["numbers"]), min(op["numbers"])])
 	return None
 # update report csv file with the result from the client
 
@@ -168,7 +171,7 @@ def number_client (client_sock, request):
 		print(f"[ERROR] Client {id} does not exists!")
 		return {"op": "NUMBER", "status": False, "error": "Cliente inexistente!"}
 	try:
-		recv_num = int(decrypt_intvalue(users[id]["cipher"], request["number"]))
+		recv_num = int(decrypt_intvalue(users[id]['cipher'], request['number']))
 		users[id]["numbers"].append(recv_num)
 	
 	# return response message with or without error message	
@@ -183,7 +186,7 @@ def number_client (client_sock, request):
 #
 # Suporte do pedido de terminação de um cliente - operação STOP
 #
-def stop_client (client_sock, request):
+def stop_client (client_sock):
 	id = find_client_id(client_sock)	# obtain the client_id from his socket
 	# verify the appropriate conditions for executing this operation
 	if id not in users:
@@ -193,11 +196,14 @@ def stop_client (client_sock, request):
 	if len(users[id]["numbers"]) == 0:
 		print(f"[ERROR] Not enough data!")
 		return {"op": "QUIT", "status": False, "error": "Dados insuficientes!"}
-	else:
-		print(f"[STOP] Client {id} stopped... ")
-		update_file(id, request)
-		clean_client(client_sock)
-		return {"op": "QUIT", "status": True, "min": users[id]["min"], "max": users[id]["max"]}
+	
+	valmin = min(users[id]["numbers"])
+	valmax = max(users[id]["numbers"])
+	cipher = users[id]["cipher"]
+	print(f"[STOP] Client {id} stopped... ")
+	update_file(id)
+	clean_client(client_sock)
+	return {"op": "QUIT", "status": True, "min": encrypt_intvalue(cipher, valmin), "max": encrypt_intvalue(cipher, valmax)}
 	
 
 
@@ -213,12 +219,13 @@ def main():
 	if len(sys.argv) != 2:
 		print("[ERROR] Invalid number of arguments!")
 		sys.exit(1)
-	elif not sys.argv[1].isnumeric():
+	elif (not sys.argv[1].isnumeric()) or int(sys.argv[1]) <= 0:
 		print("[ERROR] Invalid port!")
 		sys.exit(2)
+	
 	port = int(sys.argv[1])
 
-	print("[ONLINE] Servidor ligado!")
+	print("[ONLINE] Server Online!")
 	
 	server_socket = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.bind (("127.0.0.1", port))

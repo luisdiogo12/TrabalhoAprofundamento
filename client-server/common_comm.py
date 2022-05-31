@@ -42,7 +42,7 @@ def exact_recv (src, count):
 # message to the socket.
 #
 def send_dict (dst, msg):
-    # DEBUG print ("Send: %s" % (msg))
+    print ("Send: %s" % (msg))
     data = bytes(json.dumps (msg), "utf8")
     prefixed_data = len (data).to_bytes (4, "big") + data
     return exact_send (dst, prefixed_data)
@@ -63,7 +63,7 @@ def recv_dict (src):
     if data == None: return None
 
     msg = json.loads (str(data, "utf8"))
-    # DEBUG print ("Recv: %s" % (msg))
+    print ("Recv: %s" % (msg))
     return msg
 
 #
